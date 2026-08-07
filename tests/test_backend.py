@@ -120,5 +120,33 @@ class BackendTests(unittest.TestCase):
             failing_backend.set_password("svc", "alice", "secret")
 
 
+class NormalizePublicKeyTests(unittest.TestCase):
+    def test_ed25519_key_is_accepted(self) -> None:
+        key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleBase64KeyMaterial"
+        self.assertEqual(normalize_public_key(key), key)
+
+    def test_rsa_key_is_accepted(self) -> None:
+        self.assertEqual(normalize_public_key(PUBKEY_1), PUBKEY_1)
+
+    def test_ecdsa_key_is_rejected(self) -> None:
+        # OpenSSH's ecdsa-* signing is not deterministic (no RFC 6979), which
+        # breaks key derivation in crypto.derive_kek(). See crypto.py.
+        key = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTY="
+        with self.assertRaisesRegex(SignerError, "Unsupported SSH public key type"):
+            normalize_public_key(key)
+
+    def test_sk_key_is_rejected(self) -> None:
+        # FIDO/U2F "sk-*" keys add authenticator-side randomness on top of
+        # any ECDSA nonce randomness, so they are not deterministic either.
+        key = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t"
+        with self.assertRaisesRegex(SignerError, "Unsupported SSH public key type"):
+            normalize_public_key(key)
+
+    def test_dss_key_is_rejected(self) -> None:
+        key = "ssh-dss AAAAB3NzaC1kc3MAAACBAPexampleAAAAFQD"
+        with self.assertRaisesRegex(SignerError, "Unsupported SSH public key type"):
+            normalize_public_key(key)
+
+
 if __name__ == "__main__":
     unittest.main()
