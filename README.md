@@ -40,6 +40,8 @@ The backend stores a random data-encryption key (DEK) in wrapped form. To unwrap
 
 Record identifiers are derived with HMAC, so the on-disk store does not expose service and username pairs in plaintext.
 
+Because the key-encryption key is derived from the raw signature bytes, only key types with deterministic signing are supported: `ssh-ed25519` and `ssh-rsa`. ECDSA (`ecdsa-*`) and security-key (`sk-*`) types are rejected — OpenSSH's ECDSA signing uses a random per-signature nonce (no RFC 6979), so the same challenge does not yield the same signature and the store could not be unlocked reliably.
+
 ## Requirements
 
 - Python 3.10+

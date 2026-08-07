@@ -11,17 +11,26 @@ class SignerError(RuntimeError):
     pass
 
 
+# crypto.derive_kek() feeds the raw signature into HKDF, so the same
+# challenge must always produce the same signature or the store becomes
+# unlockable after the first use. ssh-ed25519 (EdDSA) and ssh-rsa
+# (PKCS#1 v1.5) are deterministic; OpenSSH's ecdsa-* signing uses a random
+# nonce (no RFC 6979) and sk-* (FIDO/U2F) adds authenticator-side
+# randomness, so both are rejected.
+SUPPORTED_KEY_TYPES = ("ssh-ed25519", "ssh-rsa")
+
+
 def normalize_public_key(public_key: str) -> str:
     parts = public_key.strip().split()
     if len(parts) < 2:
         raise SignerError("SSH public key must contain at least key type and key data.")
     key_type, key_data = parts[0], parts[1]
-    if not (
-        key_type.startswith("ssh-")
-        or key_type.startswith("ecdsa-")
-        or key_type.startswith("sk-")
-    ):
-        raise SignerError(f"Unsupported SSH public key type: {key_type}")
+    if key_type not in SUPPORTED_KEY_TYPES:
+        raise SignerError(
+            f"Unsupported SSH public key type: {key_type}. "
+            f"ssh-agent-keyring requires deterministic signatures and only "
+            f"supports: {', '.join(SUPPORTED_KEY_TYPES)}."
+        )
     return f"{key_type} {key_data}"
 
 
