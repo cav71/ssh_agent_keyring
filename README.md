@@ -153,12 +153,19 @@ Important implications:
 - agent forwarding policy matters
 - the security of the backend depends on the security of the selected SSH key and the agent socket
 - this is not a hardware-backed secret manager or multi-user secret vault
+- the backend invokes `ssh-keygen` from `PATH` and assumes it is genuine; on a system where an
+  attacker can plant a malicious `ssh-keygen`/`ssh-agent` ahead of it on `PATH`, or otherwise
+  observe process memory, the derived signature (which acts as the store's master key) can be
+  captured regardless of how carefully this package avoids writing it to disk
 
 The store is designed to avoid:
 
 - plaintext secrets on disk
 - plaintext service/user metadata on disk
 - a second unlock password unrelated to your SSH workflow
+
+The challenge message and the resulting signature are passed to `ssh-keygen` over stdin/stdout
+pipes, not temporary files, so neither is ever written to disk.
 
 ## Limitations
 

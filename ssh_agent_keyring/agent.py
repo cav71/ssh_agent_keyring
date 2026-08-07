@@ -63,9 +63,11 @@ class SSHKeygenAgentSigner:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             key_path = tmpdir_path / "identity.pub"
-            message_path = tmpdir_path / "message"
             key_path.write_text(normalized + "\n", encoding="utf-8")
-            message_path.write_bytes(message)
+            # The message (a derived challenge) and the resulting signature
+            # (the raw KEK material, see crypto.derive_kek()) are passed
+            # through pipes rather than temp files so neither ever touches
+            # disk.
             result = subprocess.run(
                 [
                     "ssh-keygen",
@@ -75,13 +77,13 @@ class SSHKeygenAgentSigner:
                     str(key_path),
                     "-n",
                     namespace,
-                    str(message_path),
+                    "-",
                 ],
+                input=message,
                 capture_output=True,
-                text=True,
                 check=False,
             )
             if result.returncode != 0:
-                message = result.stderr.strip() or result.stdout.strip() or "ssh-keygen -Y sign failed"
-                raise SignerError(message)
-            return Path(str(message_path) + ".sig").read_bytes()
+                error = result.stderr.decode("utf-8", errors="replace").strip()
+                raise SignerError(error or "ssh-keygen -Y sign failed")
+            return result.stdout
