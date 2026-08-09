@@ -32,8 +32,8 @@ On a plain SSH server, the usual choices are often unsatisfying:
 
 The backend stores a random data-encryption key (DEK) in wrapped form. To unwrap it, the backend:
 
-1. uses `ssh-keygen -Y sign` with a configured SSH public key
-2. relies on `ssh-agent` to produce a deterministic signature over a backend-specific challenge
+1. signs a backend-specific challenge directly through the `ssh-agent` wire protocol (via `paramiko`), producing output byte-for-byte identical to `ssh-keygen -Y sign` with a configured SSH public key
+2. relies on `ssh-agent` to produce a deterministic signature over that challenge
 3. derives a key-encryption key from that signature with HKDF-SHA256
 4. unwraps the DEK
 5. uses the DEK to encrypt and decrypt secret records with `ChaCha20Poly1305`
@@ -47,9 +47,7 @@ Because the key-encryption key is derived from the raw signature bytes, only key
 - Python 3.10+
 - [`keyring`](https://pypi.org/project/keyring/)
 - [`cryptography`](https://pypi.org/project/cryptography/)
-- OpenSSH tools providing:
-  - `ssh-add`
-  - `ssh-keygen`
+- [`paramiko`](https://pypi.org/project/paramiko/)
 - a running `ssh-agent`
 - `SSH_AUTH_SOCK` set in the current environment
 - the configured SSH key loaded in the agent
@@ -153,10 +151,9 @@ Important implications:
 - agent forwarding policy matters
 - the security of the backend depends on the security of the selected SSH key and the agent socket
 - this is not a hardware-backed secret manager or multi-user secret vault
-- the backend invokes `ssh-keygen` from `PATH` and assumes it is genuine; on a system where an
-  attacker can plant a malicious `ssh-keygen`/`ssh-agent` ahead of it on `PATH`, or otherwise
-  observe process memory, the derived signature (which acts as the store's master key) can be
-  captured regardless of how carefully this package avoids writing it to disk
+- the derived signature (which acts as the store's master key) is only as safe as the agent
+  process itself; a compromised or malicious `ssh-agent` on the other end of `SSH_AUTH_SOCK` can
+  always observe what it is asked to sign, regardless of how the request reaches it
 
 The store is designed to avoid:
 
@@ -164,12 +161,15 @@ The store is designed to avoid:
 - plaintext service/user metadata on disk
 - a second unlock password unrelated to your SSH workflow
 
-The challenge message and the resulting signature are passed to `ssh-keygen` over stdin/stdout
-pipes, not temporary files, so neither is ever written to disk.
+The backend speaks the `ssh-agent` wire protocol directly (via `paramiko`) instead of shelling out
+to `ssh-keygen`/`ssh-add`. It never spawns a subprocess or resolves an executable from `PATH`, so a
+malicious `ssh-keygen` binary placed ahead of the genuine one on `PATH` cannot observe or tamper
+with the challenge or signature. The challenge message and the resulting signature only ever exist
+in memory and on the `SSH_AUTH_SOCK` wire, never on disk or in a temporary file.
 
 ## Limitations
 
-- this backend depends on OpenSSH tooling and current `ssh-agent` behavior
+- this backend depends on the standard `ssh-agent` wire protocol
 - it is aimed at Unix-like environments
 - it does not provide secret sharing, rotation workflows, audit logs, or remote synchronization
 - it assumes the configured SSH key can be used for agent-backed signing
@@ -184,6 +184,10 @@ python3 -m unittest discover -s tests -v
 
 The project includes tests for roundtrips, tampering, key mismatch, signer failures, and store handling edge cases.
 
+`tests/test_real_agent.py` additionally spins up a real `ssh-agent` and verifies, against real
+`ssh-keygen -Y sign` output, that the backend's own agent-protocol signing is byte-for-byte
+compatible. It's skipped automatically if `ssh-agent`/`ssh-keygen`/`ssh-add` aren't on `PATH`.
+
 ## Development
 
 Project layout:
@@ -192,6 +196,7 @@ Project layout:
 - `ssh_agent_keyring/crypto.py` - key derivation and encryption helpers
 - `ssh_agent_keyring/backend.py` - `keyring` backend implementation
 - `tests/test_backend.py` - automated test suite
+- `tests/test_real_agent.py` - real `ssh-agent`/`ssh-keygen` compatibility tests
 
 ## License
 

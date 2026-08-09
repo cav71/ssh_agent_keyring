@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +13,7 @@ from keyring.backend import KeyringBackend
 from keyring.compat import properties
 from keyring.errors import PasswordDeleteError, PasswordSetError
 
-from .agent import SSHKeygenAgentSigner, SignerError, normalize_public_key
+from .agent import SignerError, SSHAgentSigner, normalize_public_key
 from .crypto import (
     KEY_BYTES,
     NONCE_BYTES,
@@ -110,17 +109,15 @@ class BackendConfig:
 class SSHAgentKeyring(KeyringBackend):
     def __init__(
         self,
-        signer: SSHKeygenAgentSigner | None = None,
+        signer: SSHAgentSigner | None = None,
         config: BackendConfig | None = None,
     ) -> None:
-        self.signer = signer or SSHKeygenAgentSigner()
+        self.signer = signer or SSHAgentSigner()
         self.config = config or BackendConfig.load()
         super().__init__()
 
     @properties.classproperty
     def priority(cls) -> float:
-        if shutil.which("ssh-add") is None or shutil.which("ssh-keygen") is None:
-            raise RuntimeError("ssh-add and ssh-keygen are required.")
         if not os.environ.get("SSH_AUTH_SOCK"):
             raise RuntimeError("SSH_AUTH_SOCK is not set.")
         return 2.2
