@@ -42,6 +42,27 @@ Record identifiers are derived with HMAC, so the on-disk store does not expose s
 
 Because the key-encryption key is derived from the raw signature bytes, only key types with deterministic signing are supported: `ssh-ed25519` and `ssh-rsa`. ECDSA (`ecdsa-*`) and security-key (`sk-*`) types are rejected — OpenSSH's ECDSA signing uses a random per-signature nonce (no RFC 6979), so the same challenge does not yield the same signature and the store could not be unlocked reliably.
 
+## Security notes
+
+This package improves on plaintext file storage, but it intentionally shifts trust to the SSH agent session.
+
+Important implications:
+
+- anyone able to use your `SSH_AUTH_SOCK` can potentially unlock the keyring during that session
+- agent forwarding policy matters: a remote host that receives a forwarded agent socket can proxy
+  and inspect its traffic, even if it cannot read the SSH private key
+- the security of the backend depends on the security of the selected SSH key and the agent socket
+- this is not a hardware-backed secret manager or multi-user secret vault
+- the derived signature (which acts as the store's master key) is only as safe as the agent
+  process itself; a compromised or malicious `ssh-agent` on the other end of `SSH_AUTH_SOCK` can
+  always observe what it is asked to sign, regardless of how the request reaches it
+
+In particular, an interceptor that sees the deterministic unlock signature and has a copy of the
+store can derive the key-encryption key, unwrap the data-encryption key, and decrypt the stored
+records, see [PoC](https://github.com/monperrus/ssh_agent_keyring/issues/2#issuecomment-5382981552). It does not need to extract the SSH private key. **Do not forward an agent to an untrusted
+host while using this backend**, and treat a forwarded agent socket as granting access to the
+keyring store.
+
 ## Requirements
 
 - Python 3.10+
@@ -129,43 +150,6 @@ keyring del example-service alice
 ```
 
 With this backend, `keyring set` prompts only for the secret being stored. It does **not** prompt for a separate keyring password.
-
-## Operational model
-
-Transparent unlock works when all of the following are true:
-
-- `SSH_AUTH_SOCK` is available in the current session
-- `ssh-agent` is reachable
-- the configured key is loaded in that agent
-- the current session is allowed to use that agent
-
-If the agent is unavailable, the wrong key is configured, or the key is not loaded, the encrypted store cannot be unlocked.
-
-## Security notes
-
-This package improves on plaintext file storage, but it intentionally shifts trust to the SSH agent session.
-
-Important implications:
-
-- anyone able to use your `SSH_AUTH_SOCK` can potentially unlock the keyring during that session
-- agent forwarding policy matters
-- the security of the backend depends on the security of the selected SSH key and the agent socket
-- this is not a hardware-backed secret manager or multi-user secret vault
-- the derived signature (which acts as the store's master key) is only as safe as the agent
-  process itself; a compromised or malicious `ssh-agent` on the other end of `SSH_AUTH_SOCK` can
-  always observe what it is asked to sign, regardless of how the request reaches it
-
-The store is designed to avoid:
-
-- plaintext secrets on disk
-- plaintext service/user metadata on disk
-- a second unlock password unrelated to your SSH workflow
-
-The backend speaks the `ssh-agent` wire protocol directly (via `paramiko`) instead of shelling out
-to `ssh-keygen`/`ssh-add`. It never spawns a subprocess or resolves an executable from `PATH`, so a
-malicious `ssh-keygen` binary placed ahead of the genuine one on `PATH` cannot observe or tamper
-with the challenge or signature. The challenge message and the resulting signature only ever exist
-in memory and on the `SSH_AUTH_SOCK` wire, never on disk or in a temporary file.
 
 ## Limitations
 
