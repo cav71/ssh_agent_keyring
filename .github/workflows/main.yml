@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: "Build & Test"
+    strategy:
+      matrix:
+        os: [ubuntu-latest] # not ready for windows-latest and macos-latest
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      # https://github.com/actions/checkout
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # https://github.com/actions/setup-python
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # https://github.com/astral-sh/setup-uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          uv sync --no-managed-python
+
+      - name: Run tests
+        run: uv run pytest -q
+
+
+  packaging:
+    name: "Creating wheel package"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: astral-sh/setup-uv@v10.0.1
+
+      - name: Create python wheel
+        uses: cav71/action-build-wheel@uv
+        with:
+          files: |
+            README.md
+            ssh_agent_keyring/__init__.py
+
+      # Only for debug
+      # - name: Archive artifacts
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     path: |
+      #       dist/*

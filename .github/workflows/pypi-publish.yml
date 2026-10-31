@@ -2,7 +2,9 @@ name: Upload Package to PyPI
 # authorization handled via trusted publishers / OIDC or use a PYPI_API_TOKEN secret
 on:
   push:
-    branches: [main]
+    tags:
+      - v*
+      
 
 permissions:
   contents: read
@@ -13,31 +15,28 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Version bump
-        uses: monperrus/pyproject-bump-pypi@main
+      - uses: actions/setup-python@v7
         with:
-          file_to_bump: "./pyproject.toml"
-          bump_type: "minor"
+          python-version: 3.14
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      - uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Install build tool
-        run: |
-          python -m pip install --upgrade pip
-          pip install build
+      - shell: bash
+          run: uv sync --no-managed-python
 
       - name: Build wheel
-        run: python -m build --wheel
+        uses: cav71/action-build-wheel@uv/v1
+        with:
+          files: |
+            README.md
+            ssh_agent_keyring/__init__.py
 
       - name: Publish package
         # This can use OIDC (no secret) if configured as a trusted publisher on PyPI,
         # or use a repository secret named PYPI_API_TOKEN. Keep both options available.
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+        uses: pypa/gh-action-pypi-publish@release@v1.14.3
         with: {}
         env:
           TWINE_USERNAME: __token__
