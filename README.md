@@ -185,3 +185,5 @@ Project layout:
 ## License
 
 License information has not been added yet.
+
+Version @version@ / @sha7@
