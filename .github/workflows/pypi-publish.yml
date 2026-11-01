@@ -24,7 +24,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.0.1
 
       - shell: bash
-          run: uv sync --no-managed-python
+        run: uv sync --no-managed-python
 
       - name: Build wheel
         uses: cav71/action-build-wheel@uv/v1
