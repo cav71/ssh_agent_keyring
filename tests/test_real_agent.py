@@ -15,7 +15,7 @@ from ssh_agent_keyring.backend import BackendConfig, SSHAgentKeyring
 
 HAVE_OPENSSH = shutil.which("ssh-agent") and shutil.which("ssh-keygen") and shutil.which("ssh-add")
 
-pytestmark = pytest.skipIf(sys.platform == "win32", reason="ssh-agent works different in win32")
+pytestmark = pytest.mark.skipIf(sys.platform == "win32", reason="ssh-agent works different in win32")
 
 
 @unittest.skipUnless(HAVE_OPENSSH, "requires ssh-agent, ssh-keygen and ssh-add on PATH")
