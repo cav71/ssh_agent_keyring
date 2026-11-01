@@ -73,6 +73,7 @@ class BackendTests(unittest.TestCase):
         with self.assertRaises(PasswordDeleteError):
             self.backend.delete_password("svc", "missing")
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="ssh-agent works different in win32")
     def test_store_file_permissions_are_private(self) -> None:
         self.backend.set_password("svc", "alice", "secret")
         self.assertEqual(self.store_path.stat().st_mode & 0o777, 0o600)
