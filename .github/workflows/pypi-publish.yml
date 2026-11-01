@@ -36,7 +36,7 @@ jobs:
       - name: Publish package
         # This can use OIDC (no secret) if configured as a trusted publisher on PyPI,
         # or use a repository secret named PYPI_API_TOKEN. Keep both options available.
-        uses: pypa/gh-action-pypi-publish@release@v1.14.3
+        uses: pypa/gh-action-pypi-publish@release/v1.14.3
         with: {}
         env:
           TWINE_USERNAME: __token__
