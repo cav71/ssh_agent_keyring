@@ -3,14 +3,19 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+
+import pytest
 from pathlib import Path
 
 from ssh_agent_keyring.agent import SSHAgentSigner, normalize_public_key
 from ssh_agent_keyring.backend import BackendConfig, SSHAgentKeyring
 
 HAVE_OPENSSH = shutil.which("ssh-agent") and shutil.which("ssh-keygen") and shutil.which("ssh-add")
+
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="working SSH agent not available on Windows")
 
 
 @unittest.skipUnless(HAVE_OPENSSH, "requires ssh-agent, ssh-keygen and ssh-add on PATH")
