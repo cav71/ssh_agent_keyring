@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from keyring.errors import PasswordDeleteError
 
 from ssh_agent_keyring.agent import SignerError, normalize_public_key
